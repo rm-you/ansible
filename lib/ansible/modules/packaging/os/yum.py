@@ -146,6 +146,13 @@ options:
         The disabled plugins will not persist beyond the transaction.
     required: false
     version_added: "2.5"
+  download_only:
+    description:
+      - Only download the packages, do not install them.
+    required: false
+    default: "no"
+    type: bool
+    version_added: "2.7"
 notes:
   - When used with a `loop:` each package will be processed individually,
     it is much more efficient to pass the list directly to the `name` option.
@@ -260,6 +267,13 @@ EXAMPLES = '''
       - postgresql
       - postgresql-server
     state: present
+
+- name: Download the nginx package but do not install it
+  yum:
+    name:
+      - nginx
+    state: latest
+    download_only: true
 '''
 
 import os
@@ -1285,7 +1299,8 @@ def latest(module, items, repoq, yum_basecmd, conf_file, en_repos, dis_repos, en
 
 def ensure(module, state, pkgs, conf_file, enablerepo, disablerepo,
            disable_gpg_check, exclude, repoq, skip_broken, update_only, security,
-           bugfix, installroot='/', allow_downgrade=False, disable_plugin=None, enable_plugin=None):
+           bugfix, installroot='/', allow_downgrade=False, disable_plugin=None, enable_plugin=None,
+           download_only=False):
 
     # fedora will redirect yum to dnf, which has incompatibilities
     # with how this module expects yum to operate. If yum-deprecated
@@ -1327,6 +1342,9 @@ def ensure(module, state, pkgs, conf_file, enablerepo, disablerepo,
     if exclude:
         e_cmd = ['--exclude=%s' % exclude]
         yum_basecmd.extend(e_cmd)
+
+    if download_only:
+        yum_basecmd.extend(['--downloadonly'])
 
     if installroot != '/':
         # do not setup installroot by default, because of error
@@ -1440,6 +1458,7 @@ def main():
             bugfix=dict(required=False, type='bool', default=False),
             enable_plugin=dict(type='list', default=[]),
             disable_plugin=dict(type='list', default=[]),
+            download_only=dict(type='bool', default=False),
         ),
         required_one_of=[['name', 'list']],
         mutually_exclusive=[['name', 'list']],
@@ -1499,10 +1518,12 @@ def main():
         security = params['security']
         bugfix = params['bugfix']
         allow_downgrade = params['allow_downgrade']
+        download_only = params['download_only']
         results = ensure(module, state, pkg, params['conf_file'], enablerepo,
                          disablerepo, disable_gpg_check, exclude, repoquery,
                          skip_broken, update_only, security, bugfix, params['installroot'], allow_downgrade,
-                         disable_plugin=disable_plugin, enable_plugin=enable_plugin)
+                         disable_plugin=disable_plugin, enable_plugin=enable_plugin,
+                         download_only=download_only)
         if repoquery:
             results['msg'] = '%s %s' % (
                 results.get('msg', ''),
