@@ -153,6 +153,21 @@ options:
     default: "no"
     type: bool
     version_added: "2.7"
+  disable_excludes:
+    description:
+      - Disable the excludes defined in YUM config files.
+      - If set to C(all), disables all excludes.
+      - If set to C(main), disable excludes defined in [main] in yum.conf.
+      - If set to C(repoid), disable excludes defined for given repo id.
+    required: false
+    version_added: "2.7"
+  disable_includes:
+    description:
+      - Disable the includes defined in YUM config files.
+      - If set to C(all), disables all includes.
+      - If set to C(repoid), disable includes defined for given repo id.
+    required: false
+    version_added: "2.7"
 notes:
   - When used with a `loop:` each package will be processed individually,
     it is much more efficient to pass the list directly to the `name` option.
@@ -274,6 +289,13 @@ EXAMPLES = '''
       - nginx
     state: latest
     download_only: true
+
+- name: Install docker-ce and disable all package exclusion
+  yum:
+    name:
+      - docker-ce-17.09.0.ce
+    state: present
+    disable_excludes: all
 '''
 
 import os
@@ -1300,7 +1322,7 @@ def latest(module, items, repoq, yum_basecmd, conf_file, en_repos, dis_repos, en
 def ensure(module, state, pkgs, conf_file, enablerepo, disablerepo,
            disable_gpg_check, exclude, repoq, skip_broken, update_only, security,
            bugfix, installroot='/', allow_downgrade=False, disable_plugin=None, enable_plugin=None,
-           download_only=False):
+           download_only=False, disable_excludes=None, disable_includes=None):
 
     # fedora will redirect yum to dnf, which has incompatibilities
     # with how this module expects yum to operate. If yum-deprecated
@@ -1345,6 +1367,11 @@ def ensure(module, state, pkgs, conf_file, enablerepo, disablerepo,
 
     if download_only:
         yum_basecmd.extend(['--downloadonly'])
+
+    if disable_excludes:
+        yum_basecmd.extend(['--disableexcludes=%s' % disable_excludes])
+    if disable_includes:
+        yum_basecmd.extend(['--disableincludes=%s' % disable_includes])
 
     if installroot != '/':
         # do not setup installroot by default, because of error
@@ -1459,6 +1486,8 @@ def main():
             enable_plugin=dict(type='list', default=[]),
             disable_plugin=dict(type='list', default=[]),
             download_only=dict(type='bool', default=False),
+            disable_excludes=dict(type='str', default=None),
+            disable_includes=dict(type='str', default=None),
         ),
         required_one_of=[['name', 'list']],
         mutually_exclusive=[['name', 'list']],
@@ -1519,11 +1548,14 @@ def main():
         bugfix = params['bugfix']
         allow_downgrade = params['allow_downgrade']
         download_only = params['download_only']
+        disable_excludes = params['disable_excludes']
+        disable_includes = params['disable_includes']
         results = ensure(module, state, pkg, params['conf_file'], enablerepo,
                          disablerepo, disable_gpg_check, exclude, repoquery,
                          skip_broken, update_only, security, bugfix, params['installroot'], allow_downgrade,
                          disable_plugin=disable_plugin, enable_plugin=enable_plugin,
-                         download_only=download_only)
+                         download_only=download_only, disable_excludes=disable_excludes,
+                         disable_includes=disable_includes)
         if repoquery:
             results['msg'] = '%s %s' % (
                 results.get('msg', ''),
